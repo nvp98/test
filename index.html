@@ -1,0 +1,830 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Đăng ký Gala Cựu SV Bách Khoa - Hòa Phát Dung Quất</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .glass-effect {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+        }
+        /* Custom scrollbar for tables & main view */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        
+        /* Smooth scrolling for anchor links if needed */
+        html { scroll-behavior: smooth; }
+        
+        /* Hiệu ứng nhún nhảy cho nút đăng ký */
+        @keyframes nhun-nhay {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-8px); }
+        }
+        .animate-nhun-nhay {
+            animation: nhun-nhay 1.5s infinite ease-in-out;
+        }
+
+        /* Hiệu ứng mảng màu trôi nổi (Blobs) */
+        @keyframes blob {
+            0% { transform: translate(0px, 0px) scale(1); }
+            33% { transform: translate(40px, -50px) scale(1.1); }
+            66% { transform: translate(-30px, 30px) scale(0.9); }
+            100% { transform: translate(0px, 0px) scale(1); }
+        }
+        .animate-blob {
+            animation: blob 10s infinite ease-in-out;
+        }
+        .animation-delay-2000 {
+            animation-delay: 2s;
+        }
+        .animation-delay-4000 {
+            animation-delay: 4s;
+        }
+    </style>
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, addDoc, onSnapshot, serverTimestamp, initializeFirestore } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Firebase configuration from environment
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
+            // Dummy config for local testing
+            apiKey: "dummy", authDomain: "dummy", projectId: "dummy"
+        };
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'bachkhoa70-app';
+        const isDummy = firebaseConfig.projectId === "dummy"; // Kiểm tra xem có đang chạy giả lập Preview không
+
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        
+        // Sử dụng initializeFirestore với AutoDetectLongPolling để sửa lỗi kết nối trên mạng nội bộ/công ty
+        let db;
+        try {
+            db = initializeFirestore(app, { experimentalAutoDetectLongPolling: true });
+        } catch (e) {
+            db = getFirestore(app);
+        }
+        
+        let isDbReady = false;
+
+        async function setupAuth() {
+            try {
+                if (isDummy) {
+                    isDbReady = true;
+                    console.log("Chế độ Preview: Sử dụng cơ sở dữ liệu giả lập.");
+                    return;
+                }
+                
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } else {
+                    await signInAnonymously(auth);
+                }
+                isDbReady = true;
+                console.log("Authenticated successfully.");
+                if (window.isAdminAuthenticated) window.loadAdminData();
+            } catch (error) {
+                console.error("Authentication failed:", error);
+                window.showToast("Lỗi kết nối cơ sở dữ liệu. Vui lòng thử lại sau.", "error");
+            }
+        }
+        setupAuth();
+
+        const form = document.getElementById('registrationForm');
+        if(form) {
+            form.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                
+                if (!isDbReady || (!isDummy && !auth.currentUser)) {
+                    window.showToast("Đang kết nối hệ thống. Vui lòng chờ vài giây rồi thử lại.", "error");
+                    return;
+                }
+
+                const btnSubmit = document.getElementById('btnSubmit');
+                const originalText = btnSubmit.innerHTML;
+                btnSubmit.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Đang xử lý...';
+                btnSubmit.disabled = true;
+
+                const formData = {
+                    employeeId: document.getElementById('employeeId').value.trim(),
+                    fullName: document.getElementById('fullName').value.trim(),
+                    workplace: document.getElementById('workplace').value.trim(),
+                    school: document.getElementById('school').value.trim(),
+                    major: document.getElementById('major').value.trim(),
+                    course: document.getElementById('course').value.trim(),
+                    timestamp: isDummy ? new Date() : serverTimestamp(),
+                    localTimeStr: new Date().toLocaleString('vi-VN')
+                };
+
+                try {
+                    if (isDummy) {
+                        // Giả lập lưu dữ liệu và delay mạng nếu đang ở chế độ Preview
+                        await new Promise(resolve => setTimeout(resolve, 800));
+                        window.registrationsData.unshift({ id: 'dummy_' + Date.now(), ...formData, timeValue: Date.now() });
+                    } else {
+                        // Lưu thật vào cơ sở dữ liệu
+                        const registrationsRef = collection(db, 'artifacts', appId, 'public', 'data', 'registrations');
+                        await addDoc(registrationsRef, formData);
+                    }
+                    
+                    window.showToast("Đăng ký thành công! Hẹn gặp bạn tại bữa tiệc Gala.", "success");
+                    form.reset();
+
+                    if(typeof window.showQRModal === 'function') {
+                        window.showQRModal();
+                    }
+
+                } catch (error) {
+                    console.error("Error adding document: ", error);
+                    window.showToast("Có lỗi xảy ra khi đăng ký. Vui lòng thử lại.", "error");
+                } finally {
+                    btnSubmit.innerHTML = originalText;
+                    btnSubmit.disabled = false;
+                }
+            });
+        }
+
+        window.isAdminAuthenticated = false;
+        let unsubscribe = null;
+        window.registrationsData = [];
+
+        window.checkAdminPassword = function() {
+            const pwd = document.getElementById('adminPassword').value;
+            const errorMsg = document.getElementById('adminError');
+            
+            if (pwd === 'admin123') {
+                window.isAdminAuthenticated = true;
+                document.getElementById('adminLoginSection').classList.add('hidden');
+                document.getElementById('adminDataSection').classList.remove('hidden');
+                document.getElementById('adminPassword').value = '';
+                errorMsg.classList.add('hidden');
+                
+                if (isDbReady) {
+                    window.loadAdminData();
+                }
+            } else {
+                errorMsg.classList.remove('hidden');
+                errorMsg.textContent = 'Mật khẩu không chính xác!';
+            }
+        };
+
+        window.loadAdminData = function() {
+            if (isDummy) {
+                 window.renderTable();
+                 return;
+            }
+
+            if (!auth.currentUser) return;
+            
+            const registrationsRef = collection(db, 'artifacts', appId, 'public', 'data', 'registrations');
+            document.getElementById('tableBody').innerHTML = '<tr><td colspan="7" class="px-6 py-4 text-center text-gray-500"><i class="fas fa-spinner fa-spin mr-2"></i>Đang tải dữ liệu...</td></tr>';
+
+            unsubscribe = onSnapshot(registrationsRef, (snapshot) => {
+                window.registrationsData = [];
+                snapshot.forEach((doc) => {
+                    const data = doc.data();
+                    window.registrationsData.push({
+                        id: doc.id,
+                        ...data,
+                        timeValue: data.timestamp ? data.timestamp.toMillis() : Date.now() 
+                    });
+                });
+
+                window.registrationsData.sort((a, b) => b.timeValue - a.timeValue);
+                window.renderTable();
+            }, (error) => {
+                console.error("Error listening to registrations: ", error);
+                document.getElementById('tableBody').innerHTML = '<tr><td colspan="7" class="px-6 py-4 text-center text-red-500">Lỗi khi tải dữ liệu.</td></tr>';
+            });
+        };
+
+        window.renderTable = function() {
+            const tbody = document.getElementById('tableBody');
+            const totalCount = document.getElementById('totalRegistrations');
+            
+            totalCount.textContent = `Tổng số đăng ký: ${window.registrationsData.length}`;
+
+            if (window.registrationsData.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" class="px-6 py-8 text-center text-gray-500">Chưa có lượt đăng ký nào.</td></tr>';
+                return;
+            }
+
+            let html = '';
+            window.registrationsData.forEach((row, index) => {
+                let dateStr = row.localTimeStr;
+                if (row.timestamp) {
+                     dateStr = new Date(row.timestamp.toMillis()).toLocaleString('vi-VN');
+                }
+
+                html += `
+                    <tr class="hover:bg-gray-50 transition-colors border-b border-gray-200">
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${index + 1}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${window.escapeHtml(row.fullName)}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${window.escapeHtml(row.employeeId)}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${window.escapeHtml(row.workplace)}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${window.escapeHtml(row.school)}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${window.escapeHtml(row.major)} - ${window.escapeHtml(row.course)}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${dateStr}</td>
+                    </tr>
+                `;
+            });
+            tbody.innerHTML = html;
+        };
+
+        window.exportExcel = function() {
+            if (window.registrationsData.length === 0) {
+                window.showToast("Không có dữ liệu để xuất", "warning");
+                return;
+            }
+
+            let tableContent = `
+                <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+                <head>
+                    <meta charset="utf-8">
+                    <!--[if gte mso 9]>
+                    <xml>
+                        <x:ExcelWorkbook>
+                            <x:ExcelWorksheets>
+                                <x:ExcelWorksheet>
+                                    <x:Name>Danh_sach_DK</x:Name>
+                                    <x:WorksheetOptions>
+                                        <x:DisplayGridlines/>
+                                    </x:WorksheetOptions>
+                                </x:ExcelWorksheet>
+                            </x:ExcelWorksheets>
+                        </x:ExcelWorkbook>
+                    </xml>
+                    <![endif]-->
+                </head>
+                <body>
+                    <table border="1">
+                        <thead>
+                            <tr>
+                                <th>STT</th>
+                                <th>Họ tên</th>
+                                <th>Mã nhân viên</th>
+                                <th>Đơn vị (HPDQ)</th>
+                                <th>Trường từng học</th>
+                                <th>Chuyên ngành</th>
+                                <th>Khóa (K)</th>
+                                <th>Thời gian đăng ký</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+            `;
+
+            window.registrationsData.forEach((row, index) => {
+                let dateStr = row.localTimeStr;
+                if (row.timestamp) {
+                     dateStr = new Date(row.timestamp.toMillis()).toLocaleString('vi-VN');
+                }
+                
+                tableContent += `
+                    <tr>
+                        <td>${index + 1}</td>
+                        <td>${window.escapeHtml(row.fullName)}</td>
+                        <td>${window.escapeHtml(row.employeeId)}</td>
+                        <td>${window.escapeHtml(row.workplace)}</td>
+                        <td>${window.escapeHtml(row.school)}</td>
+                        <td>${window.escapeHtml(row.major)}</td>
+                        <td>${window.escapeHtml(row.course)}</td>
+                        <td>${dateStr}</td>
+                    </tr>
+                `;
+            });
+
+            tableContent += `
+                        </tbody>
+                    </table>
+                </body>
+                </html>
+            `;
+
+            const blob = new Blob([tableContent], { type: 'application/vnd.ms-excel;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.href = url;
+            link.download = `Danh_sach_DK_Gala_${new Date().toISOString().slice(0,10)}.xls`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+        };
+
+        window.backupData = function() {
+            if (window.registrationsData.length === 0) {
+                window.showToast("Không có dữ liệu để backup", "warning");
+                return;
+            }
+            
+            // Chuyển đổi dữ liệu sang định dạng chuỗi JSON
+            const dataStr = JSON.stringify(window.registrationsData, null, 2);
+            const blob = new Blob([dataStr], { type: 'application/json;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            
+            const link = document.createElement("a");
+            link.href = url;
+            link.download = `Backup_Data_Gala_${new Date().toISOString().slice(0,10)}.json`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+            
+            window.showToast("Đã tải xuống file Backup (.json)", "success");
+        };
+
+        window.escapeHtml = function(unsafe) {
+            if (!unsafe) return '';
+            return unsafe
+                 .replace(/&/g, "&amp;")
+                 .replace(/</g, "&lt;")
+                 .replace(/>/g, "&gt;")
+                 .replace(/"/g, "&quot;")
+                 .replace(/'/g, "&#039;");
+        };
+    </script>
+</head>
+<body class="bg-slate-100 min-h-screen relative font-sans text-gray-800 overflow-x-hidden">
+    
+    <!-- Base Background -->
+    <div class="fixed inset-0 z-0 bg-[#e2e8f0]"></div>
+
+    <!-- Image Background -->
+    <div class="fixed inset-0 z-0 pointer-events-none bg-cover bg-center bg-no-repeat opacity-[0.15]" style="background-image: url('https://drive.google.com/uc?export=view&id=1xlf3t9skbiN4PKg9SGLk37kJpSj8vd9m');"></div>
+
+    <!-- Decorative Blobs (Lấp đầy 2 bên cánh gà) -->
+    <div class="fixed top-[-10%] left-[-10%] w-[50vw] h-[50vw] max-w-[800px] max-h-[800px] bg-red-300/40 rounded-full mix-blend-multiply filter blur-[100px] md:blur-[150px] animate-blob z-0 pointer-events-none"></div>
+    <div class="fixed top-[10%] right-[-10%] w-[45vw] h-[45vw] max-w-[700px] max-h-[700px] bg-blue-300/40 rounded-full mix-blend-multiply filter blur-[100px] md:blur-[150px] animate-blob animation-delay-2000 z-0 pointer-events-none"></div>
+    <div class="fixed bottom-[-20%] left-[20%] w-[60vw] h-[60vw] max-w-[900px] max-h-[900px] bg-yellow-200/30 rounded-full mix-blend-multiply filter blur-[100px] md:blur-[150px] animate-blob animation-delay-4000 z-0 pointer-events-none"></div>
+
+    <!-- Hidden Admin Button (Gear Icon) -->
+    <button onclick="switchTab('admin')" class="fixed top-4 right-4 z-50 p-2 bg-white/80 rounded-full shadow backdrop-blur text-gray-400 hover:text-gray-700 transition-all hover:rotate-90" title="Cài đặt">
+        <i class="fas fa-cog"></i>
+    </button>
+
+    <div class="relative z-10 w-full max-w-[1600px] mx-auto px-4 lg:px-12 py-8 lg:py-12">
+        
+        <!-- View: Main Content (Split Layout on Desktop) -->
+        <div id="view-main" class="flex flex-col lg:flex-row gap-8 lg:gap-16 xl:gap-24 items-start">
+            
+            <!-- Left Column: Intro & Info (Sticky on Desktop) -->
+            <div class="w-full lg:w-5/12 lg:sticky lg:top-8 space-y-6">
+                <!-- Logos -->
+                <div class="flex items-center gap-6 mb-2">
+                    <img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSJsa-S3oB32srgwbYmbIrlUjGHauRICQK0LB_xAGetzb1fns2NABc5OeQ&s=10" alt="HUST Logo" class="w-20 h-20 md:w-28 md:h-28 object-contain drop-shadow-md">
+                    <div class="h-20 w-px bg-gray-300 rounded-full"></div>
+                    <img src="https://cdn.haitrieu.com/wp-content/uploads/2022/01/Logo-Hoa-Phat-HPG-H.png" alt="Hoa Phat Logo" class="h-12 md:h-16 object-contain drop-shadow-md">
+                </div>
+
+                <header>
+                    <h1 class="text-[26px] sm:text-3xl md:text-4xl lg:text-[28px] xl:text-4xl font-extrabold text-red-700 leading-[1.25] mb-3 tracking-tight">
+                        <span class="block">CHÀO MỪNG</span>
+                        <span class="block">KỶ NIỆM 70 NĂM THÀNH LẬP</span>
+                        <span class="block whitespace-nowrap">ĐẠI HỌC BÁCH KHOA HÀ NỘI</span>
+                    </h1>
+                    <p class="text-lg md:text-xl lg:text-xl xl:text-2xl font-bold text-blue-900 mb-2">(15/10/1956 - 15/10/2026)</p>
+                    <p class="text-lg md:text-xl font-bold text-gray-800 uppercase tracking-wide leading-snug">Tự hào truyền thống - Vững bước tương lai</p>
+                </header>
+
+                <div class="prose text-gray-700 text-lg md:text-xl text-justify md:text-left leading-relaxed max-w-none">
+                    <p>
+                        <span class="text-2xl mr-1">✨</span> Đại học Bách khoa Hà Nội đang đến gần cột mốc 70 năm xây dựng và phát triển (1956 - 2026), hành trình bảy thập kỷ bồi đắp từ trí tuệ, bản lĩnh, khát vọng cống hiến và những dấu ấn của biết bao thế hệ thầy cô giáo, cán bộ, sinh viên và cựu sinh viên.
+                    </p>
+                    <p class="mt-4">
+                        <span class="text-2xl mr-1">❤️</span> 70 năm là một dấu mốc của thời gian, cũng là câu chuyện được viết bởi mỗi thế hệ người Bách khoa. Dù đang học tập, làm việc, nghiên cứu hay đã rời mái trường xưa, chúng ta vẫn luôn là một phần trong hành trình ấy.
+                    </p>
+                </div>
+                
+                <div class="h-px bg-gradient-to-r from-transparent via-gray-300 to-transparent my-6"></div>
+                
+                <div class="prose text-gray-800 max-w-none">
+                    <p class="font-medium text-lg md:text-xl leading-snug">
+                        <i class="fas fa-glass-cheers text-yellow-500 mr-2"></i> 
+                        Hội Cựu sinh viên đang công tác tại 
+                        <span class="font-bold text-blue-700 whitespace-nowrap">Thép Hòa Phát</span> 
+                        <span class="font-bold text-blue-700 whitespace-nowrap">Dung Quất</span> 
+                        thân mời các anh/chị/em tham dự buổi tiệc Gala gặp mặt hướng đến kỷ niệm ngày hội lớn.
+                    </p>
+                </div>
+
+                <!-- Info Card -->
+                <div class="bg-blue-50/80 backdrop-blur-sm border border-blue-200 rounded-2xl p-6 shadow-sm mt-6">
+                    <div class="flex items-start mb-4">
+                        <div class="bg-blue-100 p-3 rounded-lg text-blue-600 mr-5 shrink-0">
+                            <i class="far fa-clock text-2xl"></i>
+                        </div>
+                        <div>
+                            <p class="text-base text-gray-500 uppercase font-bold tracking-wider">Thời gian</p>
+                            <p class="text-blue-900 font-bold text-xl md:text-2xl mt-1">18h00, ngày 15/10/2026</p>
+                        </div>
+                    </div>
+                    <div class="flex items-start">
+                        <div class="bg-blue-100 p-3 rounded-lg text-blue-600 mr-5 shrink-0">
+                            <i class="fas fa-map-marker-alt text-2xl px-1"></i>
+                        </div>
+                        <div>
+                            <p class="text-base text-gray-500 uppercase font-bold tracking-wider">Địa điểm</p>
+                            <p class="text-blue-900 font-medium text-lg md:text-xl leading-relaxed mt-1">Hội trường Tầng 4, Khách sạn Harmonia, <span class="whitespace-nowrap">KKT Dung Quất,</span> xã Vạn Tường, tỉnh Quảng Ngãi.</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="mt-8 text-right md:pr-4 space-y-1">
+                    <p class="text-base md:text-lg font-medium text-gray-700 italic">
+                        Thay mặt Ban liên lạc Hội CSV BKHN đang làm việc tại HPDQ
+                    </p>
+                    <p class="text-lg md:text-xl font-bold text-blue-900 pt-2 pb-1">
+                        Mr. Nguyễn Quang Tùng
+                    </p>
+                    <p class="text-base md:text-lg font-medium text-gray-700 italic">
+                        Trân trọng kính mời!
+                    </p>
+                </div>
+            </div>
+
+            <!-- Right Column: Timeline & Registration Form -->
+            <div class="w-full lg:w-7/12 space-y-8">
+                
+                <!-- Timeline Section -->
+                <div class="glass-effect bg-white/70 p-6 md:p-8 rounded-2xl border border-white/50 shadow-md">
+                    <h3 class="text-2xl md:text-3xl font-bold text-blue-900 mb-8 flex items-center border-b border-gray-200 pb-4">
+                        <i class="fas fa-list-ul mr-4 text-red-600"></i> Chương trình dự kiến
+                    </h3>
+                    <ul class="space-y-6 relative before:absolute before:inset-0 before:ml-6 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-gray-300 before:to-transparent">
+                        
+                        <li class="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
+                            <!-- Icon -->
+                            <div class="flex items-center justify-center w-12 h-12 rounded-full border-4 border-white bg-red-100 text-red-600 shadow-md shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 z-10">
+                                <i class="fas fa-users text-lg"></i>
+                            </div>
+                            <!-- Card -->
+                            <div class="w-[calc(100%-4.5rem)] md:w-[calc(50%-3rem)] bg-white p-5 rounded-xl shadow-sm border border-gray-100">
+                                <time class="mb-1 text-base md:text-lg font-bold text-red-600">18:00 - 18:30</time>
+                                <div class="text-gray-800 font-semibold text-lg md:text-xl mt-1">Đón khách, giao lưu</div>
+                            </div>
+                        </li>
+
+                        <li class="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
+                            <div class="flex items-center justify-center w-12 h-12 rounded-full border-4 border-white bg-blue-100 text-blue-600 shadow-md shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 z-10">
+                                <i class="fas fa-microphone-alt text-lg"></i>
+                            </div>
+                            <div class="w-[calc(100%-4.5rem)] md:w-[calc(50%-3rem)] bg-white p-5 rounded-xl shadow-sm border border-gray-100">
+                                <time class="mb-1 text-base md:text-lg font-bold text-blue-600">18:30</time>
+                                <div class="text-gray-800 font-semibold text-lg md:text-xl mt-1">Khai mạc chương trình</div>
+                            </div>
+                        </li>
+
+                        <li class="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
+                            <div class="flex items-center justify-center w-12 h-12 rounded-full border-4 border-white bg-green-100 text-green-600 shadow-md shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 z-10">
+                                <i class="fas fa-utensils text-lg"></i>
+                            </div>
+                            <div class="w-[calc(100%-4.5rem)] md:w-[calc(50%-3rem)] bg-white p-5 rounded-xl shadow-sm border border-gray-100">
+                                <time class="mb-1 text-base md:text-lg font-bold text-green-600">19:00</time>
+                                <div class="text-gray-800 font-semibold text-lg md:text-xl mt-1">Khai tiệc</div>
+                            </div>
+                        </li>
+
+                        <li class="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
+                            <div class="flex items-center justify-center w-12 h-12 rounded-full border-4 border-white bg-purple-100 text-purple-600 shadow-md shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 z-10">
+                                <i class="fas fa-music text-lg"></i>
+                            </div>
+                            <div class="w-[calc(100%-4.5rem)] md:w-[calc(50%-3rem)] bg-white p-5 rounded-xl shadow-sm border border-gray-100">
+                                <time class="mb-1 text-base md:text-lg font-bold text-purple-600">19:15 - 22:00</time>
+                                <div class="text-gray-800 font-semibold text-lg md:text-xl mt-1">Mini game, giao lưu văn nghệ</div>
+                            </div>
+                        </li>
+
+                        <li class="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
+                            <div class="flex items-center justify-center w-12 h-12 rounded-full border-4 border-white bg-gray-200 text-gray-600 shadow-md shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 z-10">
+                                <i class="fas fa-flag-checkered text-lg"></i>
+                            </div>
+                            <div class="w-[calc(100%-4.5rem)] md:w-[calc(50%-3rem)] bg-white p-5 rounded-xl shadow-sm border border-gray-100">
+                                <time class="mb-1 text-base md:text-lg font-bold text-gray-600">22:00</time>
+                                <div class="text-gray-800 font-semibold text-lg md:text-xl mt-1">Kết thúc chương trình</div>
+                            </div>
+                        </li>
+                    </ul>
+                    
+                    <div class="mt-8 bg-red-50 border border-red-100 p-5 rounded-xl flex gap-4 text-red-900 shadow-sm">
+                        <i class="fas fa-exclamation-circle text-red-500 mt-1 text-xl shrink-0"></i>
+                        <p class="text-base md:text-lg leading-relaxed">Kinh phí tổ chức chương trình do các Cựu sinh viên tham gia chương trình đóng góp.</p>
+                    </div>
+                </div>
+
+                <!-- Call to Action Button (Visible by default) -->
+                <div id="cta-section" class="text-center py-6 flex flex-col items-center">
+                    <div class="inline-block animate-nhun-nhay w-full md:w-auto">
+                        <button onclick="showRegistrationForm()" class="w-full md:w-auto inline-flex justify-center items-center px-10 py-5 bg-gradient-to-r from-blue-600 to-blue-800 text-white rounded-2xl font-extrabold text-xl md:text-2xl shadow-xl hover:shadow-2xl transition-all transform hover:scale-105 focus:outline-none focus:ring-4 focus:ring-blue-300">
+                            <i class="fas fa-user-edit mr-3"></i> Đăng ký tham gia ngay
+                        </button>
+                    </div>
+                    <p class="mt-4 text-base md:text-lg text-red-600 font-medium italic">
+                        (Thời hạn đăng ký từ nay đến hết ngày 05/10/2026)
+                    </p>
+                </div>
+
+                <!-- Registration Form Section (Hidden by default) -->
+                <div id="registration-section" class="hidden glass-effect bg-white rounded-2xl shadow-xl p-6 md:p-10 border border-white/50 relative overflow-hidden transition-all duration-500">
+                    <!-- Decor top -->
+                    <div class="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-blue-500 via-red-500 to-yellow-500"></div>
+
+                    <div class="text-center mb-8 pt-2">
+                        <h2 class="text-3xl font-extrabold text-gray-800">Thông tin đăng ký</h2>
+                        <p class="text-gray-500 mt-3 text-base md:text-lg">Vui lòng điền thông tin để BTC chuẩn bị chu đáo nhất.</p>
+                    </div>
+
+                    <form id="registrationForm" class="space-y-6">
+                        <!-- Họ tên -->
+                        <div>
+                            <label for="fullName" class="block text-base md:text-lg font-bold text-gray-700 mb-2">Họ và tên <span class="text-red-500">*</span></label>
+                            <div class="relative">
+                                <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                                    <i class="fas fa-user text-gray-400 text-lg"></i>
+                                </div>
+                                <input type="text" id="fullName" required placeholder="Nhập đầy đủ họ tên..."
+                                    class="text-base md:text-lg pl-12 w-full rounded-xl bg-gray-50 border-gray-200 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 py-4 border px-4 transition-all outline-none">
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <!-- Mã nhân viên -->
+                            <div>
+                                <label for="employeeId" class="block text-base md:text-lg font-bold text-gray-700 mb-2">Mã nhân viên</label>
+                                <div class="relative">
+                                    <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                                        <i class="fas fa-id-card text-gray-400 text-lg"></i>
+                                    </div>
+                                    <input type="text" id="employeeId" placeholder="Ví dụ: HPDQ12345"
+                                        class="text-base md:text-lg pl-12 w-full rounded-xl bg-gray-50 border-gray-200 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 py-4 border px-4 transition-all outline-none">
+                                </div>
+                            </div>
+
+                            <!-- Đơn vị -->
+                            <div>
+                                <label for="workplace" class="block text-base md:text-lg font-bold text-gray-700 mb-2">Bộ phận/Phòng ban tại HPDQ <span class="text-red-500">*</span></label>
+                                <div class="relative">
+                                    <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                                        <i class="fas fa-building text-gray-400 text-lg"></i>
+                                    </div>
+                                    <input type="text" id="workplace" required placeholder="Ví dụ: NM.HRC1, P.CNLT..."
+                                        class="text-base md:text-lg pl-12 w-full rounded-xl bg-gray-50 border-gray-200 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 py-4 border px-4 transition-all outline-none">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Tên trường -->
+                        <div>
+                            <label for="school" class="block text-base md:text-lg font-bold text-gray-700 mb-2">Tên trường từng học</label>
+                            <div class="relative">
+                                <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                                    <i class="fas fa-university text-gray-400 text-lg"></i>
+                                </div>
+                                <input type="text" id="school" placeholder="Trường Vật liệu, Cơ khí, Hoá..."
+                                    class="text-base md:text-lg pl-12 w-full rounded-xl bg-gray-50 border-gray-200 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 py-4 border px-4 transition-all outline-none">
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <!-- Chuyên ngành -->
+                            <div>
+                                <label for="major" class="block text-base md:text-lg font-bold text-gray-700 mb-2">Chuyên ngành học</label>
+                                <div class="relative">
+                                    <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                                        <i class="fas fa-book-open text-gray-400 text-lg"></i>
+                                    </div>
+                                    <input type="text" id="major" placeholder="Ví dụ: CNTT, Cơ khí..."
+                                        class="text-base md:text-lg pl-12 w-full rounded-xl bg-gray-50 border-gray-200 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 py-4 border px-4 transition-all outline-none">
+                                </div>
+                            </div>
+
+                            <!-- Khóa -->
+                            <div>
+                                <label for="course" class="block text-base md:text-lg font-bold text-gray-700 mb-2">Khóa (K)</label>
+                                <div class="relative">
+                                    <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                                        <i class="fas fa-graduation-cap text-gray-400 text-lg"></i>
+                                    </div>
+                                    <input type="text" id="course" placeholder="Ví dụ: K63, K65..."
+                                        class="text-base md:text-lg pl-12 w-full rounded-xl bg-gray-50 border-gray-200 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 py-4 border px-4 transition-all outline-none">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="pt-6">
+                            <button type="submit" id="btnSubmit" class="w-full flex justify-center items-center py-5 px-6 rounded-xl shadow-lg shadow-blue-500/30 text-xl md:text-2xl font-bold text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-300 transition-all transform hover:-translate-y-1">
+                                Xác nhận đăng ký <i class="fas fa-arrow-right ml-3"></i>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- View: Admin (Hidden by default) -->
+        <div id="view-admin" class="hidden w-full bg-white rounded-3xl shadow-2xl p-6 lg:p-10 border border-gray-100 min-h-[70vh]">
+            
+            <div class="flex justify-between items-center mb-8 border-b pb-4">
+                <h2 class="text-2xl font-bold text-gray-800 flex items-center gap-2">
+                    <i class="fas fa-shield-alt text-blue-600"></i> Khu vực Quản trị
+                </h2>
+                <button onclick="switchTab('main')" class="text-gray-500 hover:text-red-600 transition-colors font-medium flex items-center gap-2 px-4 py-2 rounded-lg hover:bg-red-50">
+                    <i class="fas fa-times"></i> Đóng
+                </button>
+            </div>
+
+            <!-- Admin Login Section -->
+            <div id="adminLoginSection" class="max-w-sm mx-auto py-12 text-center">
+                <div class="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-6 shadow-inner">
+                    <i class="fas fa-lock text-3xl text-gray-400"></i>
+                </div>
+                <h3 class="text-xl font-bold text-gray-800 mb-6">Yêu cầu xác thực</h3>
+                <div class="space-y-4">
+                    <input type="password" id="adminPassword" placeholder="Nhập mật khẩu truy cập..." 
+                        class="w-full rounded-xl bg-gray-50 border-gray-200 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 py-3 border px-4 text-center transition-all outline-none"
+                        onkeypress="if(event.key === 'Enter') checkAdminPassword()">
+                    <p id="adminError" class="text-red-500 text-sm hidden font-medium"></p>
+                    <button onclick="checkAdminPassword()" class="w-full py-3 px-4 rounded-xl shadow-md font-bold text-white bg-gray-800 hover:bg-gray-900 transition-all">
+                        Đăng nhập
+                    </button>
+                </div>
+            </div>
+
+            <!-- Admin Data Section (Hidden until auth) -->
+            <div id="adminDataSection" class="hidden">
+                <div class="flex flex-col sm:flex-row justify-between items-end sm:items-center mb-6 gap-4">
+                    <div>
+                        <h3 class="text-xl font-bold text-gray-800">Danh sách đăng ký</h3>
+                        <p id="totalRegistrations" class="text-sm font-medium text-blue-600 mt-1 bg-blue-50 inline-block px-3 py-1 rounded-full border border-blue-100">Đang tải...</p>
+                    </div>
+                    <div class="flex flex-wrap gap-3 justify-end">
+                        <button onclick="backupData()" class="flex items-center px-4 py-2.5 bg-yellow-500 text-white font-medium rounded-xl hover:bg-yellow-600 transition-colors shadow-sm hover:shadow-md">
+                            <i class="fas fa-database mr-2"></i> Backup JSON
+                        </button>
+                        <button onclick="exportExcel()" class="flex items-center px-5 py-2.5 bg-green-600 text-white font-medium rounded-xl hover:bg-green-700 transition-colors shadow-sm hover:shadow-md">
+                            <i class="fas fa-file-excel mr-2"></i> Xuất Excel (.xls)
+                        </button>
+                    </div>
+                </div>
+
+                <div class="overflow-x-auto bg-white rounded-xl shadow-sm border border-gray-200">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th scope="col" class="px-6 py-3.5 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">STT</th>
+                                <th scope="col" class="px-6 py-3.5 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Họ tên</th>
+                                <th scope="col" class="px-6 py-3.5 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Mã NV</th>
+                                <th scope="col" class="px-6 py-3.5 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Đơn vị</th>
+                                <th scope="col" class="px-6 py-3.5 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Trường</th>
+                                <th scope="col" class="px-6 py-3.5 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Ngành - Khóa</th>
+                                <th scope="col" class="px-6 py-3.5 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Thời gian</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tableBody" class="bg-white divide-y divide-gray-200">
+                            <!-- Data rows will be injected here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Zalo QR Modal (Ẩn mặc định) -->
+    <div id="qrModal" class="fixed inset-0 z-[100] flex items-center justify-center opacity-0 pointer-events-none transition-opacity duration-300 bg-black/60 backdrop-blur-sm">
+        <div class="bg-white p-5 md:p-8 rounded-3xl shadow-2xl max-w-sm w-full mx-4 max-h-[90vh] overflow-y-auto transform scale-95 transition-transform duration-300 relative" id="qrModalContent">
+            <!-- Nút tắt góc phải -->
+            <button onclick="closeQRModal()" class="absolute top-3 right-3 md:top-4 md:right-4 w-8 h-8 flex items-center justify-center bg-gray-100 rounded-full text-gray-500 hover:bg-red-50 hover:text-red-600 transition-colors" title="Đóng">
+                <i class="fas fa-times"></i>
+            </button>
+
+            <div class="text-center">
+                <div class="w-12 h-12 md:w-16 md:h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3 md:mb-4 text-green-500 shadow-inner">
+                    <i class="fas fa-check text-2xl md:text-3xl"></i>
+                </div>
+                <h3 class="text-xl md:text-2xl font-bold text-gray-800 mb-1 md:mb-2">Đăng ký thành công!</h3>
+                <p class="text-gray-600 mb-3 md:mb-5 text-sm md:text-base leading-relaxed">Vui lòng quét mã QR dưới đây bằng Zalo để tham gia nhóm thông tin Gala nhé.</p>
+
+                <!-- Hình ảnh QR Code -->
+                <div class="border-2 border-dashed border-blue-200 rounded-2xl p-2 mb-3 md:mb-4 bg-blue-50/30 flex justify-center mx-auto w-full max-w-[180px] md:max-w-[250px]">
+                    <img src="https://scontent.fdad3-8.fna.fbcdn.net/v/t39.30808-6/831568128_122126788071168306_2950792732115952344_n.jpg?stp=dst-jpg_tt6&cstp=mx1260x1920&ctp=p526x296&_nc_cat=109&_nc_map=urlgen_bucketless&ccb=1-7&_nc_sid=127cfc&_nc_ohc=5kB9OvQPQQoQ7kNvwE2v7bh&_nc_oc=AdrtbFGLWpXEccCoNnvNTj_FGs0ymY9gIRraNXDuAfrbV_sGaozvHVY2mfYHh2yhb_U&_nc_zt=23&_nc_ht=scontent.fdad3-8.fna&_nc_gid=TL8zwZ6_MZMV6NudpsDqxw&_nc_ss=7a2a8&oh=00_AQOXgJ01NWzEHa7Que6cJ9OeLrk3XeVYLgoAAfJOtc4ROQ&oe=6AC62054" alt="Zalo QR Code" class="w-full h-auto rounded-xl shadow-sm object-contain">
+                </div>
+
+                <!-- Link tham gia trực tiếp (Clickable) -->
+                <div class="mb-4 md:mb-6 flex flex-col items-center gap-2">
+                    <p class="text-xs md:text-sm text-gray-500 font-medium">Hoặc bấm vào nút bên dưới nếu bạn đang dùng điện thoại:</p>
+                    <a href="https://zalo.me/g/s3pvxkh5szgbbie9en6h" target="_blank" rel="noopener noreferrer" class="inline-flex items-center justify-center w-full max-w-[250px] py-2 md:py-2.5 px-4 bg-blue-50 text-blue-700 font-bold rounded-xl border border-blue-200 hover:bg-blue-600 hover:text-white transition-all shadow-sm group text-sm md:text-base">
+                        <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/9/91/Icon_of_Zalo.svg/2048px-Icon_of_Zalo.svg.png" alt="Zalo Icon" class="w-4 h-4 md:w-5 md:h-5 mr-2 group-hover:brightness-0 group-hover:invert transition-all">
+                        Tham gia nhóm Zalo
+                    </a>
+                </div>
+
+                <button onclick="closeQRModal()" class="w-full py-2.5 md:py-3 px-4 bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold rounded-xl transition-all shadow-sm hover:shadow text-sm md:text-base">
+                    Đã tham gia / Đóng
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification Container -->
+    <div id="toast-container" class="fixed bottom-5 right-5 z-[60] flex flex-col gap-3 pointer-events-none"></div>
+
+    <script>
+        // UI Logic
+        window.showQRModal = function() {
+            const modal = document.getElementById('qrModal');
+            const content = document.getElementById('qrModalContent');
+            modal.classList.remove('opacity-0', 'pointer-events-none');
+            content.classList.remove('scale-95');
+            content.classList.add('scale-100');
+        };
+
+        window.closeQRModal = function() {
+            const modal = document.getElementById('qrModal');
+            const content = document.getElementById('qrModalContent');
+            modal.classList.add('opacity-0', 'pointer-events-none');
+            content.classList.remove('scale-100');
+            content.classList.add('scale-95');
+        };
+
+        function showRegistrationForm() {
+            const ctaSection = document.getElementById('cta-section');
+            const formSection = document.getElementById('registration-section');
+            
+            // Ẩn nút đăng ký to
+            ctaSection.classList.add('hidden');
+            
+            // Hiện form đăng ký
+            formSection.classList.remove('hidden');
+            
+            // Tự động cuộn mượt mà xuống form để người dùng thấy
+            setTimeout(() => {
+                formSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }, 100);
+        }
+
+        function switchTab(viewName) {
+            const vMain = document.getElementById('view-main');
+            const vAdmin = document.getElementById('view-admin');
+
+            if (viewName === 'main') {
+                vMain.classList.remove('hidden');
+                vMain.classList.add('flex');
+                vAdmin.classList.add('hidden');
+            } else {
+                vMain.classList.add('hidden');
+                vMain.classList.remove('flex');
+                vAdmin.classList.remove('hidden');
+
+                if (window.isAdminAuthenticated && typeof window.loadAdminData === 'function') {
+                    window.loadAdminData();
+                }
+            }
+        }
+
+        window.showToast = function(message, type = 'success') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            
+            let bgColor, icon;
+            if (type === 'success') {
+                bgColor = 'bg-white border-green-500 text-green-700';
+                icon = '<i class="fas fa-check-circle text-green-500 text-xl"></i>';
+            } else if (type === 'error') {
+                bgColor = 'bg-white border-red-500 text-red-700';
+                icon = '<i class="fas fa-exclamation-circle text-red-500 text-xl"></i>';
+            } else {
+                bgColor = 'bg-white border-yellow-500 text-yellow-700';
+                icon = '<i class="fas fa-info-circle text-yellow-500 text-xl"></i>';
+            }
+
+            toast.className = `${bgColor} border-l-4 px-5 py-4 rounded-lg shadow-xl flex items-center gap-3 transform transition-all duration-300 translate-y-10 opacity-0 pointer-events-auto min-w-[300px]`;
+            toast.innerHTML = `
+                ${icon}
+                <span class="font-medium text-sm">${message}</span>
+            `;
+
+            container.appendChild(toast);
+
+            requestAnimationFrame(() => {
+                toast.classList.remove('translate-y-10', 'opacity-0');
+            });
+
+            setTimeout(() => {
+                toast.classList.add('translate-y-10', 'opacity-0');
+                setTimeout(() => {
+                    if(container.contains(toast)) container.removeChild(toast);
+                }, 300);
+            }, 4000);
+        };
+    </script>
+</body>
+</html>
