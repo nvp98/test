@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mời nước IT</title>
+<style>
+  :root{
+    --bg:#f6f7f9; --card:#fff; --text:#1f2937; --muted:#6b7280;
+    --primary:#e8590c; --primary-d:#c24a08; --line:#e5e7eb; --ok:#15803d; --err:#b91c1c;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--text);line-height:1.45}
+  .wrap{max-width:720px;margin:0 auto;padding:16px 14px 110px}
+  h1{font-size:22px;margin:8px 0 2px}
+  .sub{color:var(--muted);font-size:14px;margin-bottom:16px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:14px}
+  label.f{display:block;font-weight:600;font-size:14px;margin-bottom:6px}
+  input[type=text],textarea,select{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:8px;font:inherit;background:#fff}
+  input[type=text]:focus,textarea:focus,select:focus{outline:2px solid #fdba74;border-color:var(--primary)}
+  .cat{font-size:13px;font-weight:700;color:var(--primary);text-transform:uppercase;letter-spacing:.04em;margin:4px 0 8px}
+  .item{border-top:1px solid var(--line);padding:10px 0}
+  .cat + .item{border-top:0}
+  .row{display:flex;align-items:center;justify-content:space-between;gap:10px}
+  .name{font-weight:600}
+  .price{color:var(--muted);font-size:13px;font-weight:400}
+  .qty{display:flex;align-items:center;gap:8px}
+  .qty button{width:34px;height:34px;border-radius:50%;border:1px solid var(--line);background:#fff;font-size:20px;line-height:1;cursor:pointer}
+  .qty button.plus{background:var(--primary);border-color:var(--primary);color:#fff}
+  .qty span{min-width:20px;text-align:center;font-weight:700}
+  .opts{margin-top:8px;display:none}
+  .item.on .opts{display:block}
+  .item.on .name{color:var(--primary-d)}
+  .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+  .chip{border:1px solid var(--line);background:#fff;border-radius:999px;padding:4px 10px;font-size:13px;cursor:pointer}
+  .chip:hover{border-color:var(--primary)}
+  .bar{position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:1px solid var(--line);padding:10px 14px;z-index:10}
+  .bar .in{max-width:720px;margin:0 auto;display:flex;align-items:center;gap:12px}
+  .sum{flex:1;font-size:14px}
+  .sum b{font-size:16px}
+  .btn{background:var(--primary);color:#fff;border:0;border-radius:10px;padding:12px 20px;font:inherit;font-weight:700;cursor:pointer}
+  .btn:hover{background:var(--primary-d)}
+  .btn:disabled{opacity:.5;cursor:not-allowed}
+  .btn.ghost{background:#fff;color:var(--primary-d);border:1px solid var(--primary)}
+  .btn.sm{padding:7px 12px;font-size:14px}
+  .btn.danger{background:#fff;color:var(--err);border:1px solid var(--err)}
+  .msg{padding:10px 12px;border-radius:8px;font-size:14px;margin-bottom:14px;display:none}
+  .msg.ok{display:block;background:#dcfce7;color:var(--ok)}
+  .msg.err{display:block;background:#fee2e2;color:var(--err)}
+  table{width:100%;border-collapse:collapse;font-size:14px}
+  th,td{text-align:left;padding:8px 6px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{color:var(--muted);font-weight:600;font-size:13px}
+  td.n{text-align:center;font-weight:700;white-space:nowrap}
+  .small{font-size:13px;color:var(--muted)}
+  .tabs{display:flex;gap:8px;margin-bottom:14px}
+  .tabs .btn{flex:1}
+  .tabs .btn.off{background:#fff;color:var(--primary-d);border:1px solid var(--primary)}
+  .hide{display:none}
+  .badge{display:inline-block;font-size:12px;font-weight:700;padding:2px 8px;border-radius:999px;vertical-align:middle}
+  .badge.open{background:#dcfce7;color:var(--ok)}
+  .badge.closed{background:#fee2e2;color:var(--err)}
+  .actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+  .grid{display:grid;gap:10px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>🥤 Mời nước IT</h1>
+  <div class="sub">Chọn đợt mời nước, chọn món rồi bấm <b>Gửi đơn</b>. Đơn được ghi vào Google Sheet theo từng đợt.</div>
+
+  <!-- ===== CHỌN / TẠO ĐỢT ===== -->
+  <div class="card">
+    <label class="f" for="roundSel">Đợt mời nước</label>
+    <select id="roundSel"></select>
+    <div id="roundInfo" class="small" style="margin-top:8px"></div>
+    <div class="actions">
+      <button class="btn ghost sm" id="newRoundBtn" type="button">+ Tạo đợt mới</button>
+      <button class="btn ghost sm" id="copyLink" type="button">Copy link đợt này</button>
+    </div>
+
+    <div id="newRound" class="grid hide" style="margin-top:12px;padding-top:12px;border-top:1px solid var(--line)">
+      <div>
+        <label class="f" for="rName">Tên đợt</label>
+        <input type="text" id="rName" placeholder="VD: Mời nước thứ 6 – mừng dự án xong">
+      </div>
+      <div>
+        <label class="f" for="rNote">Ghi chú (không bắt buộc)</label>
+        <input type="text" id="rNote" placeholder="VD: Quán Cô Ba, chốt đơn trước 14h">
+      </div>
+      <div class="actions" style="margin-top:0">
+        <button class="btn sm" id="createRound" type="button">Tạo đợt</button>
+        <button class="btn ghost sm" id="cancelRound" type="button">Hủy</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="tabs">
+    <button class="btn" id="tabOrder" type="button">Đặt nước</button>
+    <button class="btn off" id="tabList" type="button">Xem tổng hợp</button>
+  </div>
+
+  <div id="msg" class="msg"></div>
+
+  <!-- ===== TRANG ĐẶT NƯỚC ===== -->
+  <div id="pageOrder">
+    <div class="card">
+      <label class="f" for="who">Họ tên *</label>
+      <input type="text" id="who" placeholder="VD: Anh Ba Nhật" autocomplete="name">
+    </div>
+
+    <div class="card" id="menu"></div>
+
+    <div class="card">
+      <label class="f" for="alt">Món thay thế nếu hết món đã chọn (không bắt buộc)</label>
+      <input type="text" id="alt" placeholder="VD: Nếu hết sinh tố bơ thì sữa chua cam">
+    </div>
+  </div>
+
+  <!-- ===== TRANG TỔNG HỢP ===== -->
+  <div id="pageList" class="hide">
+    <div class="card">
+      <div class="row" style="margin-bottom:8px">
+        <b id="listTitle">Tổng hợp theo món</b>
+        <button class="btn ghost sm" id="reload" type="button">Tải lại</button>
+      </div>
+      <div id="byItem" class="small">Đang tải…</div>
+      <div class="actions"><button class="btn danger sm hide" id="toggleStatus" type="button"></button></div>
+    </div>
+    <div class="card">
+      <b>Chi tiết từng người</b>
+      <div id="byPerson" class="small" style="margin-top:8px">Đang tải…</div>
+    </div>
+    <div class="card">
+      <b>Tất cả các đợt</b>
+      <div id="allRounds" class="small" style="margin-top:8px">Đang tải…</div>
+    </div>
+  </div>
+</div>
+
+<div class="bar" id="bar">
+  <div class="in">
+    <div class="sum">Đã chọn: <b id="totalQty">0</b> ly</div>
+    <button class="btn" id="submit" type="button">Gửi đơn</button>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   CẤU HÌNH – dán URL Web App của Google Apps Script vào đây
+   (Triển khai > Ứng dụng web > copy URL kết thúc bằng /exec)
+   ============================================================ */
+const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbw9cCPQhh7wrZ6RigJN_v9eE87jAQyn5MIoguZSoki7jwDazI18cgIQyB4-n_1uvcLk/exec";
+
+/* Thực đơn – lấy từ các món có trong file Excel.
+   Muốn có giá thì điền price (nghìn đồng). Muốn thêm/bớt món thì sửa danh sách này. */
+const MENU = [
+  { cat: "Sinh tố", items: [
+    { name: "Sinh tố bơ" },
+    { name: "Sinh tố bơ dừa" },
+    { name: "Sinh tố chanh dây" },
+    { name: "Sinh tố xoài" },
+  ]},
+  { cat: "Cam & nước ép", items: [
+    { name: "Nước cam" },
+    { name: "Nước cam đặc biệt", price: 30 },
+    { name: "Cam ép" },
+  ]},
+  { cat: "Đá xay & sữa chua", items: [
+    { name: "Việt quất đá xay" },
+    { name: "Matcha đá xay" },
+    { name: "Cacao đá xay" },
+    { name: "Sữa chua hạt đác trái cây" },
+  ]},
+  { cat: "Cà phê & trà", items: [
+    { name: "Cà phê muối" },
+    { name: "Trà sữa" },
+    { name: "Trà gừng" },
+  ]},
+  { cat: "Khác", items: [
+    { name: "Redbull" },
+    { name: "Kem bơ" },
+    { name: "Kem ốc quế" },
+  ]},
+];
+const CHIPS = ["Không đá", "Ít đá", "Không đường", "Ít đường", "50% đường", "50% đá"];
+
+/* ---------- Trạng thái ---------- */
+const state = {};          // tên món -> {qty, note}
+let rounds = [];           // danh sách đợt
+let curId = "";            // mã đợt đang chọn
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const curRound = () => rounds.find(r => r.id === curId);
+const isOpen = r => r && r.status !== "Đóng";
+
+/* ---------- Gọi API ---------- */
+function needUrl(){
+  if(SCRIPT_URL.startsWith("DÁN_")) throw new Error("Chưa cấu hình SCRIPT_URL trong file HTML");
+}
+async function apiGet(params){
+  needUrl();
+  const u = new URL(SCRIPT_URL);
+  Object.entries(params).forEach(([k,v]) => u.searchParams.set(k, v));
+  const data = await (await fetch(u)).json();
+  if(!data.ok) throw new Error(data.error || "Lỗi không xác định");
+  return data;
+}
+async function apiPost(body){
+  needUrl();
+  const res = await fetch(SCRIPT_URL, {
+    method: "POST",
+    headers: { "Content-Type": "text/plain;charset=utf-8" },
+    body: JSON.stringify(body)
+  });
+  const data = await res.json();
+  if(!data.ok) throw new Error(data.error || "Lỗi không xác định");
+  return data;
+}
+
+/* ---------- Thông báo ---------- */
+function show(text, type){
+  const m = $("msg");
+  m.textContent = text;
+  m.className = "msg " + type;
+  window.scrollTo({top:0, behavior:"smooth"});
+}
+function clearMsg(){ $("msg").className = "msg"; }
+
+/* ---------- Thực đơn ---------- */
+function renderMenu(){
+  const box = $("menu");
+  box.innerHTML = "";
+  MENU.forEach(group => {
+    const g = document.createElement("div");
+    g.innerHTML = `<div class="cat">${esc(group.cat)}</div>`;
+    group.items.forEach(it => {
+      state[it.name] = state[it.name] || {qty:0, note:""};
+      const div = document.createElement("div");
+      div.className = "item";
+      div.dataset.name = it.name;
+      div.innerHTML = `
+        <div class="row">
+          <div class="name">${esc(it.name)} ${it.price ? `<span class="price">· ${it.price}K</span>` : ""}</div>
+          <div class="qty">
+            <button type="button" class="minus" aria-label="Giảm">−</button>
+            <span class="q">0</span>
+            <button type="button" class="plus" aria-label="Tăng">+</button>
+          </div>
+        </div>
+        <div class="opts">
+          <input type="text" class="note" placeholder="Ghi chú (ít đá, không đường…)">
+          <div class="chips">${CHIPS.map(c => `<span class="chip">${esc(c)}</span>`).join("")}</div>
+        </div>`;
+      g.appendChild(div);
+    });
+    box.appendChild(g);
+  });
+}
+function refresh(){
+  let total = 0;
+  document.querySelectorAll(".item").forEach(el => {
+    const s = state[el.dataset.name];
+    el.querySelector(".q").textContent = s.qty;
+    el.classList.toggle("on", s.qty > 0);
+    total += s.qty;
+  });
+  $("totalQty").textContent = total;
+}
+$("menu").addEventListener("click", e => {
+  const item = e.target.closest(".item");
+  if(!item) return;
+  const s = state[item.dataset.name];
+  if(e.target.classList.contains("plus")) s.qty = Math.min(s.qty + 1, 20);
+  else if(e.target.classList.contains("minus")) s.qty = Math.max(s.qty - 1, 0);
+  else if(e.target.classList.contains("chip")){
+    const inp = item.querySelector(".note");
+    const t = e.target.textContent;
+    if(!inp.value.split(",").map(x => x.trim()).includes(t)){
+      inp.value = inp.value.trim() ? inp.value.trim().replace(/,$/,"") + ", " + t : t;
+    }
+    s.note = inp.value;
+  } else return;
+  refresh();
+});
+$("menu").addEventListener("input", e => {
+  if(e.target.classList.contains("note")){
+    state[e.target.closest(".item").dataset.name].note = e.target.value;
+  }
+});
+
+/* ---------- Đợt mời nước ---------- */
+function renderRoundSelect(){
+  const sel = $("roundSel");
+  if(!rounds.length){
+    sel.innerHTML = `<option value="">(Chưa có đợt nào – hãy tạo đợt mới)</option>`;
+    $("roundInfo").textContent = "";
+    return;
+  }
+  sel.innerHTML = rounds.map(r =>
+    `<option value="${esc(r.id)}">${esc(r.name)} — ${esc(r.created)}${isOpen(r) ? "" : " (đã đóng)"}</option>`).join("");
+  sel.value = curId;
+  const r = curRound();
+  $("roundInfo").innerHTML = r
+    ? `<span class="badge ${isOpen(r) ? "open" : "closed"}">${isOpen(r) ? "Đang mở" : "Đã đóng"}</span> `
+      + `Mã: ${esc(r.id)} · ${r.total || 0} ly` + (r.note ? `<br>${esc(r.note)}` : "")
+    : "";
+  $("submit").disabled = !isOpen(r);
+}
+
+function setCur(id){
+  curId = id;
+  try{
+    const u = new URL(location.href);
+    u.searchParams.set("round", id);
+    history.replaceState(null, "", u);
+  }catch(_){ /* mở bằng file:// thì bỏ qua */ }
+  renderRoundSelect();
+}
+
+async function loadRounds(preferId){
+  try{
+    const data = await apiGet({ action: "rounds" });
+    rounds = data.rounds || [];
+    const urlId = new URLSearchParams(location.search).get("round");
+    const pick = [preferId, curId, urlId].find(id => id && rounds.some(r => r.id === id))
+              || (rounds.find(isOpen) || rounds[0] || {}).id || "";
+    setCur(pick);
+    if(!rounds.length) $("newRound").classList.remove("hide");
+  }catch(err){
+    $("roundInfo").textContent = "Không tải được danh sách đợt: " + err.message;
+  }
+}
+
+$("roundSel").addEventListener("change", e => {
+  setCur(e.target.value);
+  if(!$("pageList").classList.contains("hide")) loadList();
+});
+$("newRoundBtn").onclick = () => $("newRound").classList.toggle("hide");
+$("cancelRound").onclick = () => $("newRound").classList.add("hide");
+
+$("createRound").onclick = async () => {
+  clearMsg();
+  const btn = $("createRound");
+  btn.disabled = true; btn.textContent = "Đang tạo…";
+  try{
+    const data = await apiPost({ action: "createRound", name: $("rName").value.trim(), note: $("rNote").value.trim() });
+    $("rName").value = ""; $("rNote").value = "";
+    $("newRound").classList.add("hide");
+    await loadRounds(data.round.id);
+    show(`Đã tạo đợt "${data.round.name}". Bấm "Copy link đợt này" để gửi mọi người.`, "ok");
+  }catch(err){
+    show("Tạo đợt không thành công: " + err.message, "err");
+  }finally{
+    btn.disabled = false; btn.textContent = "Tạo đợt";
+  }
+};
+
+$("copyLink").onclick = async () => {
+  if(!curId) return show("Chưa chọn đợt nào.", "err");
+  const u = new URL(location.href);
+  u.search = ""; u.hash = "";
+  u.searchParams.set("round", curId);
+  try{
+    await navigator.clipboard.writeText(u.toString());
+    show("Đã copy link đợt: " + u.toString(), "ok");
+  }catch(_){
+    prompt("Copy link đợt này:", u.toString());
+  }
+};
+
+/* ---------- Gửi đơn ---------- */
+$("submit").addEventListener("click", async () => {
+  clearMsg();
+  const who = $("who").value.trim();
+  const r = curRound();
+  const items = Object.entries(state)
+    .filter(([, s]) => s.qty > 0)
+    .map(([name, s]) => ({ name, qty: s.qty, note: s.note.trim() }));
+
+  if(!r) return show("Chưa chọn đợt mời nước. Hãy chọn hoặc tạo đợt mới.", "err");
+  if(!isOpen(r)) return show("Đợt này đã đóng, không nhận thêm đơn.", "err");
+  if(!who) return show("Bạn chưa nhập họ tên.", "err");
+  if(!items.length) return show("Bạn chưa chọn món nào.", "err");
+
+  const btn = $("submit");
+  btn.disabled = true; btn.textContent = "Đang gửi…";
+  try{
+    await apiPost({ action: "order", round: r.id, who, alt: $("alt").value.trim(), items });
+    show(`Đã ghi đơn của ${who} vào đợt "${r.name}": ${items.reduce((a,b)=>a+b.qty,0)} ly. Cảm ơn bạn!`, "ok");
+    Object.values(state).forEach(s => { s.qty = 0; s.note = ""; });
+    document.querySelectorAll(".note").forEach(i => i.value = "");
+    $("who").value = ""; $("alt").value = "";
+    refresh();
+    loadRounds(r.id);
+  }catch(err){
+    show("Gửi không thành công: " + err.message, "err");
+    loadRounds(r.id);   // cập nhật lại trạng thái đợt (có thể đã bị đóng)
+  }finally{
+    btn.textContent = "Gửi đơn";
+    btn.disabled = !isOpen(curRound());
+  }
+});
+
+/* ---------- Tổng hợp ---------- */
+async function loadList(){
+  $("byItem").textContent = "Đang tải…";
+  $("byPerson").textContent = "Đang tải…";
+  $("toggleStatus").classList.add("hide");
+  try{
+    await loadRounds(curId);
+    renderAllRounds();
+    const r = curRound();
+    if(!r){
+      $("listTitle").textContent = "Tổng hợp";
+      $("byItem").textContent = "Chưa có đợt nào.";
+      $("byPerson").textContent = "";
+      return;
+    }
+    $("listTitle").textContent = "Tổng hợp: " + r.name;
+    const t = $("toggleStatus");
+    t.textContent = isOpen(r) ? "Đóng đợt (ngừng nhận đơn)" : "Mở lại đợt";
+    t.classList.toggle("danger", isOpen(r));
+    t.classList.toggle("ghost", !isOpen(r));
+    t.classList.remove("hide");
+
+    const data = await apiGet({ action: "orders", round: r.id });
+    const rows = data.rows || [];
+    if(!rows.length){
+      $("byItem").textContent = "Đợt này chưa có đơn nào.";
+      $("byPerson").textContent = "Đợt này chưa có đơn nào.";
+      return;
+    }
+    const m = {};
+    rows.forEach(x => {
+      m[x.item] = m[x.item] || { qty: 0, details: [] };
+      m[x.item].qty += Number(x.qty) || 0;
+      m[x.item].details.push(`${x.who}${x.qty > 1 ? " ×" + x.qty : ""}${x.note ? " (" + x.note + ")" : ""}`);
+    });
+    const total = rows.reduce((a, x) => a + (Number(x.qty) || 0), 0);
+    $("byItem").innerHTML = `<table><tr><th>Món</th><th>SL</th><th>Người đặt</th></tr>` +
+      Object.entries(m).sort((a,b) => b[1].qty - a[1].qty).map(([k,v]) =>
+        `<tr><td>${esc(k)}</td><td class="n">${v.qty}</td><td>${esc(v.details.join("; "))}</td></tr>`).join("") +
+      `<tr><td><b>Tổng</b></td><td class="n">${total}</td><td></td></tr></table>`;
+
+    const p = {};
+    rows.forEach(x => {
+      p[x.who] = p[x.who] || { items: [], alt: "" };
+      p[x.who].items.push(`${x.item} ×${x.qty}${x.note ? " (" + x.note + ")" : ""}`);
+      if(x.alt) p[x.who].alt = x.alt;
+    });
+    $("byPerson").innerHTML = `<table><tr><th>Họ tên</th><th>Món</th></tr>` +
+      Object.entries(p).map(([k,v]) =>
+        `<tr><td>${esc(k)}</td><td>${esc(v.items.join("; "))}${v.alt ? `<div class="small">Thay thế: ${esc(v.alt)}</div>` : ""}</td></tr>`).join("") +
+      `</table>`;
+  }catch(err){
+    $("byItem").textContent = "Không tải được: " + err.message;
+    $("byPerson").textContent = "";
+  }
+}
+
+function renderAllRounds(){
+  if(!rounds.length){ $("allRounds").textContent = "Chưa có đợt nào."; return; }
+  $("allRounds").innerHTML = `<table><tr><th>Đợt</th><th>Ngày tạo</th><th>Ly</th><th>TT</th></tr>` +
+    rounds.map(r => `<tr><td>${esc(r.name)}</td><td>${esc(r.created)}</td><td class="n">${r.total || 0}</td>` +
+      `<td><span class="badge ${isOpen(r) ? "open" : "closed"}">${isOpen(r) ? "Mở" : "Đóng"}</span></td></tr>`).join("") +
+    `</table>`;
+}
+
+$("toggleStatus").onclick = async () => {
+  const r = curRound();
+  if(!r) return;
+  const toClose = isOpen(r);
+  if(toClose && !confirm(`Đóng đợt "${r.name}"? Sau khi đóng sẽ không nhận thêm đơn.`)) return;
+  try{
+    await apiPost({ action: "setStatus", id: r.id, status: toClose ? "Đóng" : "Mở" });
+    await loadList();
+    show(toClose ? "Đã đóng đợt." : "Đã mở lại đợt.", "ok");
+  }catch(err){
+    show("Không đổi được trạng thái: " + err.message, "err");
+  }
+};
+
+/* ---------- Chuyển tab ---------- */
+function tab(which){
+  clearMsg();
+  const order = which === "order";
+  $("pageOrder").classList.toggle("hide", !order);
+  $("pageList").classList.toggle("hide", order);
+  $("bar").classList.toggle("hide", !order);
+  $("tabOrder").classList.toggle("off", !order);
+  $("tabList").classList.toggle("off", order);
+  if(!order) loadList();
+}
+$("tabOrder").onclick = () => tab("order");
+$("tabList").onclick = () => tab("list");
+$("reload").onclick = loadList;
+
+/* ---------- Khởi động ---------- */
+renderMenu();
+refresh();
+$("submit").disabled = true;
+loadRounds();
+</script>
+</body>
+</html>
